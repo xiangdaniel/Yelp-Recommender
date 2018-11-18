@@ -66,11 +66,11 @@ def rating_generator(line):
     return businessId, (userId, stars)
 
 
-def multiplication(norm_co_occurrence, rating_bcast):
-    businessB = norm_co_occurrence[0]
-    businessA = norm_co_occurrence[1][0]
-    relation = norm_co_occurrence[1][1]
-    list_user_rating = list_flatten([rating_bcast.value.get(businessB)])
+def multiplication(kv):
+    businessB = kv[0]
+    businessA = kv[1][0][0]
+    relation = kv[1][0][1]
+    list_user_rating = list_flatten([kv[1][1]])
     for user_rating in list_user_rating:
         yield (user_rating[0], businessA), relation * user_rating[1]
 
@@ -118,12 +118,11 @@ def main(inputs, k, output):
     co_occurrence = dataByUser.flatMap(co_occurrence_generator).reduceByKey(operator.add)
     norm_co_occurrence = co_occurrence.map(norm_map).reduceByKey(norm_add).flatMap(norm_cooccurrence)
 
-    # 3. BUILD RATING MATRIX: BUSINESS, (USER, STARS)
+    # 3. BUILD RATING MATRIX: BUSINESS, list[(USER, STARS)]
     rating = review.map(rating_generator).reduceByKey(add_pairs)
-    rating_bcast = sc.broadcast(dict(rating.collect()))
 
     # 4. Matrix Multiplication
-    userBusiness_rating = norm_co_occurrence.flatMap(lambda c: multiplication(c, rating_bcast)).reduceByKey(operator.add)
+    userBusiness_rating = norm_co_occurrence.join(rating).flatMap(multiplication).reduceByKey(operator.add)
     user_businessRating = userBusiness_rating.map(lambda kv: (kv[0][0], (kv[0][1], kv[1]))).reduceByKey(add_pairs)
 
     # 5. RECOMMENDER MODEL
@@ -134,7 +133,7 @@ def main(inputs, k, output):
 
 
 if __name__ == '__main__':
-    conf = SparkConf().setAppName('reddit averages')
+    conf = SparkConf().setAppName('yelp recommender')
     sc = SparkContext(conf=conf)
     assert sc.version >= '2.3'  # make sure we have Spark 2.3+
 
