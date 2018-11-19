@@ -98,7 +98,8 @@ def recommender(user_businessRating, flag_bcast, k):
     while len(heap) > 0:
         rating, businessId = heapq.heappop(heap)
         list.insert(0, (businessId, rating))
-    return userId, list
+    if len(list) > 0:
+        yield userId, list
 
 
 def average(kv):
@@ -128,7 +129,7 @@ def main(inputs, k, output):
     # 5. RECOMMENDER MODEL
     flag = review.map(flag_map).reduceByKey(add_pairs)
     flag_bcast = sc.broadcast(dict(flag.collect()))
-    user_topk = user_businessRating.map(lambda c: recommender(c, flag_bcast, k)).sortBy(get_key).map(json.dumps)
+    user_topk = user_businessRating.flatMap(lambda c: recommender(c, flag_bcast, k)).sortBy(get_key).map(json.dumps)
     user_topk.saveAsTextFile(output)
 
 
