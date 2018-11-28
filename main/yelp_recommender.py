@@ -31,7 +31,10 @@ def list_flatten(l):
 
 
 def co_occurrence_generator(kv):
-    list_business_stars = list_flatten([kv[1]])
+    if isinstance(kv[1], list):
+        list_business_stars = kv[1]
+    else:
+        list_business_stars = [kv[1]]
     for item1 in list_business_stars:
         business1 = item1[0]
         for item2 in list_business_stars:
@@ -70,7 +73,10 @@ def multiplication(kv):
     businessB = kv[0]
     businessA = kv[1][0][0]
     relation = kv[1][0][1]
-    list_user_rating = list_flatten([kv[1][1]])
+    if isinstance(kv[1][1], list):
+        list_user_rating = kv[1][1]
+    else:
+        list_user_rating = [kv[1][1]]
     for user_rating in list_user_rating:
         yield (user_rating[0], businessA), relation * user_rating[1]
 
@@ -81,11 +87,17 @@ def flag_map(line):
     return userId, businessId
 
 
-def recommender(user_businessRating, flag_bcast, k):
+def recommender(kv, k):
     heap = []
-    userId = user_businessRating[0]
-    list_business_rating = list_flatten([user_businessRating[1]])
-    list_ratedBusiness = list_flatten([flag_bcast.value.get(userId)])
+    userId = kv[0]
+    if isinstance(kv[1][0], list):
+        list_business_rating = kv[1][0]
+    else:
+        list_business_rating = [kv[1][0]]
+    if isinstance(kv[1][1], list):
+        list_ratedBusiness = kv[1][1]
+    else:
+        list_ratedBusiness = [kv[1][1]]
     for business_rating in list_business_rating:
         businessId = business_rating[0]
         rating = business_rating[1]
@@ -94,12 +106,12 @@ def recommender(user_businessRating, flag_bcast, k):
         heapq.heappush(heap, (rating, businessId))
         if len(heap) > k:
             heapq.heappop(heap)
-    list = []
+    list_recommendation = []
     while len(heap) > 0:
         rating, businessId = heapq.heappop(heap)
-        list.insert(0, (businessId, rating))
-    if len(list) > 0:
-        yield userId, list
+        list_recommendation.insert(0, businessId)
+    if len(list_recommendation) > 0:
+        yield userId, list_recommendation
 
 
 def average(kv):
@@ -112,7 +124,7 @@ def get_key(kv):
 
 def main(inputs, k, output):
     # 1. LOAD DATA
-    review = sc.textFile(inputs).repartition(100).map(json.loads).cache()
+    review = sc.textFile(inputs).repartition(50).map(json.loads).cache()
 
     # 2. BUILD Co-Occurrence Matrix: BUSINESSB, (BUSINESSA, RELATION)
     dataByUser = review.map(rating_map).reduceByKey(add_pairs)
@@ -128,8 +140,7 @@ def main(inputs, k, output):
 
     # 5. RECOMMENDER MODEL
     flag = review.map(flag_map).reduceByKey(add_pairs)
-    flag_bcast = sc.broadcast(dict(flag.collect()))
-    user_topk = user_businessRating.flatMap(lambda c: recommender(c, flag_bcast, k)).sortBy(get_key).map(json.dumps)
+    user_topk = user_businessRating.join(flag).flatMap(lambda c: recommender(c, k)).sortBy(get_key)
     user_topk.saveAsTextFile(output)
 
 
