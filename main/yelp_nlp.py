@@ -8,7 +8,6 @@ from nltk.corpus import wordnet as wn
 from pyspark.sql import SparkSession, functions, types
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer
-from load_tools import business_schema, review_schema
 
 assert sys.version_info >= (3, 5)  # make sure we have Python 3.5+
 spark = SparkSession.builder.appName('yelp nlp').getOrCreate()
