@@ -2,8 +2,8 @@ import sys
 import nltk
 from nltk import pos_tag
 from nltk.stem import WordNetLemmatizer
-from nltk.corpus import sentiwordnet as swn
 from nltk.corpus import wordnet as wn
+from nltk.corpus import sentiwordnet as swn
 from pyspark.sql import SparkSession, functions, types
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer
@@ -16,8 +16,9 @@ assert spark.version >= '2.3'  # make sure we have Spark 2.3+
 nltk.data.path.append('/home/dxiang/nltk_data')
 
 
-#@functions.udf(returnType=types.ArrayType(types.StringType()))
 def py_morphy(tokens):
+    from nltk.corpus import wordnet as wn
+    nltk.data.path.append('/home/dxiang/nltk_data')
     if not isinstance(tokens, list):
         tokens = [tokens]
     #lemmatizer = WordNetLemmatizer()
@@ -35,6 +36,7 @@ udf_morphy = functions.udf(py_morphy, returnType=types.ArrayType(types.StringTyp
 
 
 def classify_tokens(list_tokens):
+    from nltk.corpus import wordnet as wn
     nltk.data.path.append('/home/dxiang/nltk_data')
     if not isinstance(list_tokens, list):
         list_tokens = [list_tokens]
@@ -75,6 +77,7 @@ def get_parent_classes(synset):
 
 
 def find_near_a(i, index_n, index_a, tokens):
+    from nltk.corpus import wordnet as wn
     i_left = -1  # left wall
     i_right = len(tokens)  # right wall
     if index_n.index(i) - 1 >= 0 and index_n[index_n.index(i) - 1] >= i_left:
@@ -97,6 +100,9 @@ def find_near_a(i, index_n, index_a, tokens):
 
 
 def senti_score(tokens):
+    from nltk.corpus import wordnet as wn
+    from nltk.corpus import sentiwordnet as swn
+    nltk.data.path.append('/home/dxiang/nltk_data')
     classfications = ['food', 'environment', 'service', 'price']
     index_n = []
     index_a = []
