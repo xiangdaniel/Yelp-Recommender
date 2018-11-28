@@ -1,3 +1,4 @@
+import pandas as pd
 import sys
 import nltk
 from nltk import pos_tag
@@ -7,6 +8,8 @@ from nltk.corpus import wordnet as wn
 from pyspark.sql import SparkSession, functions, types
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer
+from load_tools import business_schema, review_schema
+
 assert sys.version_info >= (3, 5)  # make sure we have Python 3.5+
 spark = SparkSession.builder.appName('yelp nlp').getOrCreate()
 spark.sparkContext.setLogLevel('WARN')
@@ -27,7 +30,7 @@ review_schema = types.StructType([
 
 
 #@functions.udf(returnType=types.ArrayType(types.StringType()))
-def udf_morphy(tokens):
+def py_morphy(tokens):
     if not isinstance(tokens, list):
         tokens = [tokens]
     #lemmatizer = WordNetLemmatizer()
@@ -39,6 +42,9 @@ def udf_morphy(tokens):
             continue
         modified_tokens.append(modified_token)
     return modified_tokens
+
+
+udf_morphy = functions.udf(py_morphy, returnType=types.ArrayType(types.StringType()))
 
 
 #@functions.udf(returnType=types.ArrayType(types.ArrayType(types.StringType())))
@@ -73,6 +79,9 @@ def classify_tokens(list_tokens):
     return list_token
 
 
+udf_classify_tokens = functions.udf(classify_tokens, returnType=types.ArrayType(types.StringType()))
+
+
 def get_parent_classes(synset):
     list_hypernyms = []
     while True:
@@ -93,7 +102,7 @@ def find_near_a(i, index_n, index_a, tokens):
         i_right = index_n[index_n.index(i) + 1]
     i_best_a = -1
     min_distance = len(tokens) + 1
-    for i_a in index_a:
+    for i_a in index_a[::-1]:
         adj = wn.synsets(tokens[i_a], pos=wn.ADJ)
         if len(adj) == 0:
             index_a.remove(i_a)
@@ -106,44 +115,46 @@ def find_near_a(i, index_n, index_a, tokens):
     return i_best_a
 
 
-def senti_score(tokens, classfication):
-    index = []
+def senti_score(tokens):
+    classfications = ['food', 'environment', 'staff', 'price']
     index_n = []
     index_a = []
     for i, x in enumerate(tokens):
-        if x == classfication:
-            index.append(i)
-            index_n.append(i)
-        elif wn.synsets(x)[0].pos() == 'n' and pos_tag([x])[0][1] == 'NN':
+        if wn.synsets(x)[0].pos() == 'n' and pos_tag([x])[0][1] == 'NN':
             index_n.append(i)
         else:
             index_a.append(i)
-    score = 0.0
-    count = 0
-    if len(index) == 0 or len(index_a) == 0:
-        return score
-    index_a_copy = index_a[:]  # hard copy
-    for i in index:
-        if len(index_a_copy) == 0:
+    scores = [0.0, 0.0, 0.0, 0.0]  # (score_food, score_environment, score_staff, score_price)
+    counts = [0, 0, 0, 0]  # (count_food, count_environment, count_staff, count_price)
+    if len(index_n) == 0 or len(index_a) == 0:
+        return scores
+    #index_a_copy = index_a[:]  # hard copy
+    for i in index_n:
+        if len(index_a) == 0:
             break
-        i_a = find_near_a(i, index_n, index_a_copy, tokens)
+        i_a = find_near_a(i, index_n, index_a, tokens)
         if i_a == -1:
             continue
         #print(i_a)
         #print(tokens[i_a])
         #print(wn.synsets(tokens[i_a], pos=wn.ADJ))
+        i_class = classfications.index(tokens[i])
         adj = wn.synsets(tokens[i_a], pos=wn.ADJ)
-        score += swn.senti_synset(adj[0].name()).pos_score()
-        score -= swn.senti_synset(adj[0].name()).neg_score()
-        count += 1
-    if count == 0:
-        return score
-    return score / count
+        scores[i_class] += swn.senti_synset(adj[0].name()).pos_score()
+        scores[i_class] -= swn.senti_synset(adj[0].name()).neg_score()
+        counts[i_class] += 1
+    for i in range(4):
+        if counts[i] != 0:
+            scores[i] /= counts[i]
+    return scores
+
+
+udf_senti_score = functions.udf(senti_score, returnType=types.ArrayType(types.FloatType()))
 
 
 def main(inputs, output):
     # 1. Load Data and Select only business_id, stars, text
-    data = spark.read.json(inputs, schema=review_schema).select('business_id', 'stars', 'text')
+    data = spark.read.json(inputs, schema=review_schema).repartition(50).select('business_id', 'stars', 'text')
     data = data.where(data['text'].isNotNull())  # filter reviews with no text
 
     # 2. ML pipeline: Tokenization (with Regular Expression) and Remove Stop Words
@@ -154,23 +165,33 @@ def main(inputs, output):
     # count_vectorizer = CountVectorizer(inputCol='filtered_words', outputCol='features')
     nlp_pipeline = Pipeline(stages=[regex_tokenizer, stopwords_remover])
     model = nlp_pipeline.fit(data)
-    review = model.transform(data).select('business_id', 'stars', 'text', 'tokens')
-    #review = review.select(review['business_id'], review['text'], udf_morphy(review['tokens']).alias('tokens'))
+    review = model.transform(data).select('business_id', 'stars', 'tokens')
 
     # 3. Select Features
-    review_pd = review.toPandas()
-    review_pd['tokens'] = review_pd['tokens'].apply(udf_morphy)
+    #review_pd = review.toPandas()
+    #review_pd['tokens'] = review_pd['tokens'].apply(udf_morphy)
     #review_pd['tokens_tag'] = review_pd['tokens'].apply(udf_pos_tag)
-    review_pd['classify_tokens'] = review_pd['tokens'].apply(classify_tokens)
+    #review_pd['classify_tokens'] = review_pd['tokens'].apply(classify_tokens)
+    review = review.select(review['business_id'], review['stars'], udf_morphy(review['tokens']).alias('tokens'))
+    review = review.where(functions.size(review['tokens']) > 0)
+    review = review.withColumn('classify_tokens', udf_classify_tokens(review['tokens']))
 
     # 4. Calculate Feature Weights
-    review_pd['food'] = review_pd['stars'] * review_pd['classify_tokens'].apply(lambda c: senti_score(c, 'food'))
-    review_pd['environment'] = review_pd['classify_tokens'].apply(lambda c: senti_score(c, 'environment'))
-    review_pd['staff'] = review_pd['classify_tokens'].apply(lambda c: senti_score(c, 'staff'))
-    review_pd['price'] = review_pd['classify_tokens'].apply(lambda c: senti_score(c, 'price'))
+    #review_pd['feature_weights'] = review_pd['classify_tokens'].apply(senti_score)
+    #review_pd[['food', 'environment', 'staff', 'price']] = pd.DataFrame(review_pd['feature_weights'].values.tolist(), index=review_pd.index)
+    #review_pd['food'] = review_pd['stars'] * review_pd['food']
+    #review_pd['environment'] = review_pd['stars'] * review_pd['environment']
+    #review_pd['staff'] = review_pd['stars'] * review_pd['staff']
+    #review_pd['price'] = review_pd['stars'] * review_pd['price']
+    review = review.withColumn('feature_weights', udf_senti_score(review['classify_tokens']))
+    review = review.withColumn('food', review['stars'] * review['feature_weights'][0])
+    review = review.withColumn('environment', review['stars'] * review['feature_weights'][1])
+    review = review.withColumn('staff', review['stars'] * review['feature_weights'][2])
+    review = review.withColumn('price', review['stars'] * review['feature_weights'][3])
 
     # 5. Calculate Average Feature Weights
-    review_new = spark.createDataFrame(review_pd[['business_id', 'stars', 'food', 'environment', 'staff', 'price']])
+    #review_new = spark.createDataFrame(review_pd[['business_id', 'stars', 'food', 'environment', 'staff', 'price']])
+    review_new = review.select('business_id', 'stars', 'food', 'environment', 'staff', 'price')
     review_new = review_new.groupby('business_id').agg(
         functions.mean('stars').alias('ave_stars'),
         functions.mean('food').alias('food'),
