@@ -16,15 +16,14 @@ assert spark.version >= '2.3'  # make sure we have Spark 2.3+
 nltk.data.path.append('/home/dxiang/nltk_data')
 
 
+#@functions.udf(returnType=types.ArrayType(types.StringType()))
 def py_morphy(tokens):
     from nltk.corpus import wordnet as wn
     nltk.data.path.append('/home/dxiang/nltk_data')
     if not isinstance(tokens, list):
         tokens = [tokens]
-    #lemmatizer = WordNetLemmatizer()
     modified_tokens = []
     for token in tokens:
-        #token = lemmatizer.lemmatize(token)
         modified_token = wn.morphy(token)
         if modified_token is None:
             continue
