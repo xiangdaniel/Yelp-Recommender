@@ -1,4 +1,3 @@
-import pandas as pd
 import sys
 import nltk
 from nltk import pos_tag
@@ -8,24 +7,13 @@ from nltk.corpus import wordnet as wn
 from pyspark.sql import SparkSession, functions, types
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer
+from load_tools import business_schema, review_schema
 
 assert sys.version_info >= (3, 5)  # make sure we have Python 3.5+
 spark = SparkSession.builder.appName('yelp nlp').getOrCreate()
 spark.sparkContext.setLogLevel('WARN')
 assert spark.version >= '2.3'  # make sure we have Spark 2.3+
 nltk.data.path.append('/home/dxiang/nltk_data')
-
-review_schema = types.StructType([
-    types.StructField('review_id', types.StringType(), False),
-    types.StructField('user_id', types.StringType(), False),
-    types.StructField('business_id', types.StringType(), False),
-    types.StructField('stars', types.IntegerType(), False),
-    types.StructField('date', types.StringType(), False),
-    types.StructField('text', types.StringType(), False),
-    types.StructField('useful', types.IntegerType(), False),
-    types.StructField('funny', types.IntegerType(), False),
-    types.StructField('cool', types.IntegerType(), False),
-])
 
 
 #@functions.udf(returnType=types.ArrayType(types.StringType()))
@@ -46,14 +34,8 @@ def py_morphy(tokens):
 udf_morphy = functions.udf(py_morphy, returnType=types.ArrayType(types.StringType()))
 
 
-#@functions.udf(returnType=types.ArrayType(types.ArrayType(types.StringType())))
-def udf_pos_tag(tokens):
-    if isinstance(tokens, list):
-        return pos_tag(tokens)
-    return pos_tag([tokens])
-
-
 def classify_tokens(list_tokens):
+    nltk.data.path.append('/home/dxiang/nltk_data')
     if not isinstance(list_tokens, list):
         list_tokens = [list_tokens]
     list_token = []
@@ -67,7 +49,7 @@ def classify_tokens(list_tokens):
             elif token == 'environment' or 'location' in list_hypernyms or 'situation' in list_hypernyms or 'condition' in list_hypernyms or 'area' in list_hypernyms:
                 list_token.append('environment')
             elif token == 'staff' or 'supervisor' in list_hypernyms or 'work' in list_hypernyms or 'worker' in list_hypernyms or 'consumer' in list_hypernyms:
-                list_token.append('staff')
+                list_token.append('service')
             elif token == 'price' or 'value' in list_hypernyms:
                 list_token.append('price')
         else:
@@ -115,7 +97,7 @@ def find_near_a(i, index_n, index_a, tokens):
 
 
 def senti_score(tokens):
-    classfications = ['food', 'environment', 'staff', 'price']
+    classfications = ['food', 'environment', 'service', 'price']
     index_n = []
     index_a = []
     for i, x in enumerate(tokens):
@@ -127,20 +109,16 @@ def senti_score(tokens):
     counts = [0, 0, 0, 0]  # (count_food, count_environment, count_staff, count_price)
     if len(index_n) == 0 or len(index_a) == 0:
         return scores
-    #index_a_copy = index_a[:]  # hard copy
     for i in index_n:
         if len(index_a) == 0:
             break
         i_a = find_near_a(i, index_n, index_a, tokens)
         if i_a == -1:
             continue
-        #print(i_a)
-        #print(tokens[i_a])
-        #print(wn.synsets(tokens[i_a], pos=wn.ADJ))
         i_class = classfications.index(tokens[i])
         adj = wn.synsets(tokens[i_a], pos=wn.ADJ)
         scores[i_class] += swn.senti_synset(adj[0].name()).pos_score()
-        scores[i_class] -= swn.senti_synset(adj[0].name()).neg_score()
+        #scores[i_class] -= swn.senti_synset(adj[0].name()).neg_score()
         counts[i_class] += 1
     for i in range(4):
         if counts[i] != 0:
@@ -167,35 +145,24 @@ def main(inputs, output):
     review = model.transform(data).select('business_id', 'stars', 'tokens')
 
     # 3. Select Features
-    #review_pd = review.toPandas()
-    #review_pd['tokens'] = review_pd['tokens'].apply(udf_morphy)
-    #review_pd['tokens_tag'] = review_pd['tokens'].apply(udf_pos_tag)
-    #review_pd['classify_tokens'] = review_pd['tokens'].apply(classify_tokens)
     review = review.select(review['business_id'], review['stars'], udf_morphy(review['tokens']).alias('tokens'))
     review = review.where(functions.size(review['tokens']) > 0)
     review = review.withColumn('classify_tokens', udf_classify_tokens(review['tokens']))
 
     # 4. Calculate Feature Weights
-    #review_pd['feature_weights'] = review_pd['classify_tokens'].apply(senti_score)
-    #review_pd[['food', 'environment', 'staff', 'price']] = pd.DataFrame(review_pd['feature_weights'].values.tolist(), index=review_pd.index)
-    #review_pd['food'] = review_pd['stars'] * review_pd['food']
-    #review_pd['environment'] = review_pd['stars'] * review_pd['environment']
-    #review_pd['staff'] = review_pd['stars'] * review_pd['staff']
-    #review_pd['price'] = review_pd['stars'] * review_pd['price']
     review = review.withColumn('feature_weights', udf_senti_score(review['classify_tokens']))
     review = review.withColumn('food', review['stars'] * review['feature_weights'][0])
     review = review.withColumn('environment', review['stars'] * review['feature_weights'][1])
-    review = review.withColumn('staff', review['stars'] * review['feature_weights'][2])
+    review = review.withColumn('service', review['stars'] * review['feature_weights'][2])
     review = review.withColumn('price', review['stars'] * review['feature_weights'][3])
 
     # 5. Calculate Average Feature Weights
-    #review_new = spark.createDataFrame(review_pd[['business_id', 'stars', 'food', 'environment', 'staff', 'price']])
-    review_new = review.select('business_id', 'stars', 'food', 'environment', 'staff', 'price')
+    review_new = review.select('business_id', 'stars', 'food', 'environment', 'service', 'price')
     review_new = review_new.groupby('business_id').agg(
         functions.mean('stars').alias('ave_stars'),
         functions.mean('food').alias('food'),
         functions.mean('environment').alias('environment'),
-        functions.mean('staff').alias('staff'),
+        functions.mean('service').alias('service'),
         functions.mean('price').alias('price')
     )
 
