@@ -1,7 +1,10 @@
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from pyspark.sql import SparkSession, types
+from pyspark.sql import SparkSession, functions, types
+
+recommender_schema = types.StructType([
+    types.StructField('user_id', types.StringType(), False),
+    types.StructField('recommendation_business_id', types.StringType(), False),
+    types.StructField('predicted_stars', types.FloatType(), False)
+])
 
 business_schema = types.StructType([
     types.StructField('business_id', types.StringType(), False),
