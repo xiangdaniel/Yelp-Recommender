@@ -3,6 +3,9 @@ import operator
 import heapq
 
 from pyspark import SparkConf, SparkContext
+from pyspark.sql import SQLContext
+from load_tools import recommender_schema
+
 import sys
 assert sys.version_info >= (3, 5)  # make sure we have Python 3.5+
 
@@ -106,20 +109,9 @@ def recommender(kv, k):
         heapq.heappush(heap, (rating, businessId))
         if len(heap) > k:
             heapq.heappop(heap)
-    list_recommendation = []
     while len(heap) > 0:
         rating, businessId = heapq.heappop(heap)
-        list_recommendation.insert(0, businessId)
-    if len(list_recommendation) > 0:
-        yield userId, list_recommendation
-
-
-def average(kv):
-    return kv[0], kv[1][1] / kv[1][0]
-
-
-def get_key(kv):
-    return kv[0]
+        yield userId, businessId, rating
 
 
 def main(inputs, k, output):
@@ -140,13 +132,14 @@ def main(inputs, k, output):
 
     # 5. RECOMMENDER MODEL
     flag = review.map(flag_map).reduceByKey(add_pairs)
-    user_topk = user_businessRating.join(flag).flatMap(lambda c: recommender(c, k)).sortBy(get_key)
-    user_topk.saveAsTextFile(output)
+    user_topk = user_businessRating.join(flag).flatMap(lambda c: recommender(c, k))
+    sqlContext.createDataFrame(user_topk, schema=recommender_schema).sort('user_id').write.csv(output, mode='overwrite')
 
 
 if __name__ == '__main__':
     conf = SparkConf().setAppName('yelp recommender')
     sc = SparkContext(conf=conf)
+    sqlContext = SQLContext(sc)
     assert sc.version >= '2.3'  # make sure we have Spark 2.3+
 
     inputs = sys.argv[1]
