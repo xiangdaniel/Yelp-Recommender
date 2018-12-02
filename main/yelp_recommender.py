@@ -88,7 +88,8 @@ def multiplication(kv):
 def get_loc(line):
     businessId = line['business_id']
     city = line['city']
-    return businessId, city
+    state = line['state']
+    return businessId, city + state
 
 
 def get_user(line):
