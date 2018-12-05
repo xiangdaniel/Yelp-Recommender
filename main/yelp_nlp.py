@@ -41,11 +41,11 @@ def classify_tokens(list_tokens):
         list_tokens = [list_tokens]
     list_token = []
     for token in list_tokens:
-        tag = wn.synsets(token)[0].pos()  # ADJ, ADJ_SAT, ADV, NOUN, VERB = 'a'/JJ', 's', 'r', 'n', 'v'
+        tag = wn.synsets(token)[0].pos()  # ADJ, ADJ_SAT, ADV, NOUN, VERB = 'a/JJ', 's', 'r', 'n', 'v'
         if tag == 'n' and pos_tag([token])[0][1] == 'NN':
             noun = wn.synsets(token)[0]
             list_hypernyms = get_parent_classes(noun)
-            if token == 'food' or 'food' in list_hypernyms or 'animal' in list_hypernyms or 'fruit' in list_hypernyms or 'alcohol' in list_hypernyms or 'beverage' in list_hypernyms:
+            if token == 'food' or token == 'drink' or 'food' in list_hypernyms or 'animal' in list_hypernyms or 'fruit' in list_hypernyms or 'alcohol' in list_hypernyms or 'beverage' in list_hypernyms:
                 list_token.append('food')
             elif token == 'environment' or 'location' in list_hypernyms or 'situation' in list_hypernyms or 'condition' in list_hypernyms or 'area' in list_hypernyms:
                 list_token.append('environment')
@@ -54,9 +54,7 @@ def classify_tokens(list_tokens):
             elif token == 'price' or 'value' in list_hypernyms:
                 list_token.append('price')
         else:
-            if tag == 'n':
-                continue
-            elif tag == 'a' or tag == 's' or pos_tag([token])[0][1] == 'JJ' or pos_tag([token])[0][1] == 'JJS':
+            if tag == 'a' or tag == 's' or pos_tag([token])[0][1] == 'JJ' or pos_tag([token])[0][1] == 'JJS':
                 list_token.append(token)
     return list_token
 
