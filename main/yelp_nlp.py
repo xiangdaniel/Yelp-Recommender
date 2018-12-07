@@ -1,3 +1,11 @@
+"""
+Yelp Recommender
+Select features and calculate the weights to facilitate recommendation
+Copyright (c) 2018 Daniel D Xiang
+Licensed under the MIT License
+Written by Daniel Xiang
+"""
+
 import sys
 import nltk
 from nltk import pos_tag
