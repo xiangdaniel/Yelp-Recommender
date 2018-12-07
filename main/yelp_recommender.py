@@ -1,3 +1,11 @@
+"""
+Yelp Recommender
+Implement the Item-based Collaborative Filtering
+Copyright (c) 2018 Daniel D Xiang
+Licensed under the MIT License
+Written by Daniel Xiang
+"""
+
 import functools
 import json
 import operator
