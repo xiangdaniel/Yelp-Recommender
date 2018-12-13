@@ -6,6 +6,15 @@ recommender_schema = types.StructType([
     types.StructField('predicted_stars', types.FloatType(), False)
 ])
 
+feature_schema = types.StructType([
+    types.StructField('business_id', types.StringType(), False),
+    types.StructField('stars', types.FloatType(), False),
+    types.StructField('score1', types.FloatType(), False),  # food
+    types.StructField('score2', types.FloatType(), False),  # environment
+    types.StructField('score3', types.FloatType(), False),  # service
+    types.StructField('score4', types.FloatType(), False),  # price
+])
+
 business_schema = types.StructType([
     types.StructField('business_id', types.StringType(), False),
     types.StructField('name', types.StringType(), False),
@@ -31,4 +40,3 @@ review_schema = types.StructType([
     types.StructField('funny', types.IntegerType(), False),
     types.StructField('cool', types.IntegerType(), False)
 ])
-
