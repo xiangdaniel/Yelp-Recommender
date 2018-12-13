@@ -35,6 +35,7 @@ def main(input_bus, input_rev, input_feature, city, state, keywords, k, output):
         FROM bus_rec_join 
         INNER JOIN feature ON bus_rec_join.business_id = feature.business_id""")
 
+    # 3. Add columns for further use in web page
     bus_rec_fea_join = bus_rec_fea_join.withColumn("feature1", lit("food"))
     bus_rec_fea_join = bus_rec_fea_join.withColumn("feature2", lit("environment"))
     bus_rec_fea_join = bus_rec_fea_join.withColumn("feature3", lit("service"))
@@ -47,6 +48,7 @@ def main(input_bus, input_rev, input_feature, city, state, keywords, k, output):
         bus_rec_fea_join['postal_code'].alias('postalCode'), bus_rec_fea_join['stars'], bus_rec_fea_join['state'],
         bus_rec_fea_join['score1'], bus_rec_fea_join['score2'], bus_rec_fea_join['score3'], bus_rec_fea_join['score4'])
 
+    # 4. Recommend TopK
     final_table = final_table.sort('stars', ascending=False).limit(k)
     final_table.coalesce(1).write.option("header", "true").csv(output)
 
