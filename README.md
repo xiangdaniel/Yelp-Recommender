@@ -1,11 +1,10 @@
 # Feature-Based Yelp Recommendation System
 
 Feature-Based Yelp Recommendation System is the course project of CMPT 732. We developed a restaurant recommendation
-system for both users and visitors using Yelp Open Dataset. The Item-based Collaborative Filtering recommendation algorithm was implemented with Spark. We also researched Natural Language Processing and analyzed the reviews of users. Four features are extracted and their weights are calculated to facilitate users' understanding about the recommended restaurants. We finally created a web page to visualize results. If users log in their ids, they will get the information about the recommended restaurants based on their previous preference.
-
-We used [Yelp Open Dataset](https://www.yelp.com/dataset/challenge).
+system for both users and visitors using [Yelp Open Dataset](https://www.yelp.com/dataset/challenge). The Item-based Collaborative Filtering recommendation algorithm was implemented with Spark. We also researched Natural Language Processing and analyzed the reviews of users. Four features are extracted and their weights are calculated to facilitate users' understanding about the recommended restaurants. We finally created a web page to visualize results. If users log in their ids, they will get the information about the recommended restaurants based on their previous preference.
 
 
+### Folder introduction
 **Folder directory: main**
 
 | File | Description |
@@ -18,6 +17,7 @@ We used [Yelp Open Dataset](https://www.yelp.com/dataset/challenge).
 | `yelp_review_data_clean.py` | filter out all restaurant review data |
 | `yelp_recommendation_info.py` | merge business data, recommendation info and nlp feature info |
 
+### Arguments description
 yelp_recommender.py
 
 | Arguments | Description |
