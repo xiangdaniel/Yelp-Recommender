@@ -1,6 +1,6 @@
 # Feature-Based Yelp Recommendation System
 
-We developed a restaurant recommendation
+Feature-Based Yelp Recommendation System is the course project of CMPT 732. We developed a restaurant recommendation
 system for both users and visitors using Yelp Open Dataset. The Item-based Collaborative Filtering recommendation algorithm was implemented with Spark. We also researched Natural Language Processing and analyzed the reviews of users. Four features are extracted and their weights are calculated to facilitate users' understanding about the recommended restaurants. We finally created a web page to visualize results. If users log in their ids, they will get the information about the recommended restaurants based on their previous preference.
 
 We used [Yelp Open Dataset](https://www.yelp.com/dataset/challenge).
@@ -73,4 +73,4 @@ yelp_recommendation_info.py
 
 **Data Visualization**
 
-You can visit [yelp](https://github.com/cmpt732/yelp) to access details about web visualization. Web server and database (mySQL) are setup on amazon AWS. Web backend and frontend are developed with JAVA spring boot framework and AngularJS. After user input user IDs on the website,  we will return top 8 restaurants with the name and address. For these recommended restaurants, users can further filter the restaurants based on food categories :American, Asian Fusion French, Chinese, Japanese.... We also generate a histogram for each of restaurants to show their scores on the four features: Food, Service, Environment, Price, as well as the wordcloud to show the highest frequency words appear in this restaurant's reviews, so that to provide another snapshot of this restaurant. Users can based on their preference to select the restaurant without reading through tons of reviews.   
+You can visit [yelp](https://github.com/cmpt732/yelp) to access details about data visualization. Web server and database (mySQL) are setup on amazon AWS. Web backend and frontend are developed with JAVA spring boot framework and AngularJS. After user input user IDs on the website,  we will return top 8 restaurants with the name and address. For these recommended restaurants, users can further filter the restaurants based on food categories :American, Asian Fusion French, Chinese, Japanese.... We also generate a histogram for each of restaurants to show their scores on the four features: Food, Service, Environment, Price, as well as the wordcloud to show the highest frequency words appear in this restaurant's reviews, so that to provide another snapshot of this restaurant. Users can based on their preference to select the restaurant without reading through tons of reviews.   
